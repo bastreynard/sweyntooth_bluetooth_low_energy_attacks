@@ -146,7 +146,7 @@ def receive_encrypted(pkt):
     header = raw_pkt[4]  # Get ble header
     length = raw_pkt[5]  # add 4 bytes for the mic
 
-    if length is 0 or length < 5:
+    if length == 0 or length < 5:
         # ignore empty PDUs
         return pkt
     # Subtract packet length 4 bytes of MIC
