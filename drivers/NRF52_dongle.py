@@ -7,8 +7,56 @@ import serial.tools.list_ports
 
 sys.path.insert(0, os.getcwd() + '../libs')
 from colorama import Fore
-from scapy.utils import raw, wrpcap
-from scapy.layers.bluetooth4LE import BTLE, NORDIC_BLE
+from scapy.utils import wrpcap
+from scapy.layers.bluetooth import *
+from scapy.layers.bluetooth4LE import BTLE
+from scapy.all import *
+
+# USB Serial commands
+NRF52_CMD_DATA = b'\xA7'
+NRF52_CMD_DATA_TX = b'\xBB'
+NRF52_CMD_CHECKSUM_ERROR = b'\xA8'
+NRF52_CMD_CONFIG_AUTO_EMPTY_PDU = b'\xA9'
+NRF52_CMD_CONFIG_ACK = b'\xAA'
+NRF52_CMD_CONFIG_LOG_TX = b'\xCC'
+NRF52_CMD_CONFIG_NESNSN = b'\xAD'
+NRF52_CMD_CONFIG_NESN = b'\xAE'
+NRF52_CMD_CONFIG_SN = b'\xAF'
+NRF52_CMD_BOOTLOADER_SEQ1 = b'\xA6'
+NRF52_CMD_BOOTLOADER_SEQ2 = b'\xC7'
+NRF52_CMD_LOG = b'\x7F'
+
+DONGLE_DEFAULT_BAUDRATE = '115200'
+
+DLT_NORDIC_BLE	= 272
+access_address = 0x9a328370
+
+class NORDIC_BLE(Packet):
+    """Cooked Nordic BTLE link-layer pseudoheader.
+    """
+    name = "BTLE Nordic info header"
+    fields_desc = [
+        ByteField("board", 0),
+        LEShortField("payload_len", None),
+        ByteField("protocol", 0),
+        LEShortField("packet_counter", 0),
+        ByteField("packet_id", 0),
+        ByteField("packet_len", 10),
+        ByteField("flags", 0),
+        ByteField("channel", 0),
+        ByteField("rssi", 0),
+        LEShortField("event_counter", 0),
+        LEIntField("delta_time", 0),
+    ]
+
+    def post_build(self, p, pay):
+        if self.payload_len is None:
+            p = p[:1] + chb(len(pay) + 10) + p[2:]
+        return p + pay
+
+
+conf.l2types.register(DLT_NORDIC_BLE, NORDIC_BLE)
+bind_layers(NORDIC_BLE, BTLE)
 
 # USB Serial commands
 NRF52_CMD_DATA = b'\xA7'

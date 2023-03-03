@@ -42,20 +42,7 @@ colorama.init(autoreset=True)
 
 # Get serial port from command line
 if len(sys.argv) >= 2:
-    serial_port = sys.argv[1]
-elif platform.system() == 'Linux':
-    serial_port = '/dev/ttyACM0'
-elif platform.system() == 'Windows':
-    serial_port = 'COM1'
-else:
-    print(Fore.RED + 'Platform not identified')
-    sys.exit(0)
-
-print(Fore.YELLOW + 'Serial port: ' + serial_port)
-
-# Get advertiser_address from command line (peripheral addr)
-if len(sys.argv) >= 3:
-    advertiser_address = sys.argv[2].upper()
+    advertiser_address = sys.argv[1].upper()
 else:
     advertiser_address = 'A4:C1:38:D8:AD:B8'
 
@@ -81,13 +68,13 @@ def scan_timeout():
 def set_security_settings(pkt):
     global paring_auth_request
     # Change security parameters according to slave security request
-    # paring_auth_request = pkt[SM_Security_Request].authentication
-    print(Fore.YELLOW + 'Slave requested authentication of ' + hex(pkt[SM_Security_Request].authentication))
+    # paring_auth_request = pkt[SM_Pairing_Request].authentication
+    print(Fore.YELLOW + 'Slave requested authentication of ' + hex(pkt[SM_Pairing_Request].authentication))
     print(Fore.YELLOW + 'We are using authentication of ' + hex(paring_auth_request))
 
 
 def send_termination_indication():
-    pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_TERMINATE_IND()
+    pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_TERMINATE_IND()
     driver.send(pkt)
 
 
@@ -107,7 +94,7 @@ def send_pairing_request():
 
 
 # Open serial port of NRF52 Dongle
-driver = NRF52Dongle(serial_port, '115200', logs_pcap=True, pcap_filename='knob_ble_tester.pcap')
+driver = NRF52Dongle(logs_pcap=True, pcap_filename='knob_ble_tester.pcap')
 # Send scan request
 scan_req = BTLE() / BTLE_ADV() / BTLE_SCAN_REQ(
     ScanA=master_address,
@@ -138,7 +125,7 @@ while True:
 
         # --------------- Process Link Layer Packets here ------------------------------------
         # Check if packet from advertised is received
-        if BTLE_SCAN_RSP in pkt and pkt.AdvA == advertiser_address.lower() and connecting == False:
+        if (BTLE_SCAN_RSP in pkt or BTLE_ADV_IND in pkt) and pkt.AdvA == advertiser_address.lower() and connecting == False:
             connecting = True
             update_timeout('scan_timeout')
             disable_timeout('crash_timeout')
@@ -169,21 +156,21 @@ while True:
         elif BTLE_DATA in pkt and connecting == True:
             connecting = False
             print(Fore.GREEN + 'Slave Connected (Link Layer data channel established)')
-            if SM_Security_Request in pkt:
+            if SM_Pairing_Request in pkt:
                 set_security_settings(pkt)
             if LL_VERSION_IND in pkt:
-                pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_VERSION_IND(version='4.2')
+                pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_VERSION_IND(version='4.2')
                 driver.send(pkt)
             # Send Feature request
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_FEATURE_REQ(
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_FEATURE_REQ(
                 feature_set='le_encryption+le_data_len_ext')
             driver.send(pkt)
 
-        elif SM_Security_Request in pkt:
+        elif SM_Pairing_Request in pkt:
             set_security_settings(pkt)
 
         elif LL_FEATURE_RSP in pkt:
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_LENGTH_REQ(
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_LENGTH_REQ(
                 max_tx_bytes=247 + 4, max_rx_bytes=247 + 4)
             driver.send(pkt)
 
@@ -194,14 +181,14 @@ while True:
 
         elif ATT_Exchange_MTU_Response in pkt:
             # Send version indication request
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_VERSION_IND(version='4.2')
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_VERSION_IND(version='4.2')
             driver.send(pkt)
 
         elif LL_VERSION_IND in pkt:
             send_pairing_request()
 
         elif LL_LENGTH_REQ in pkt:
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_LENGTH_RSP(
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_LENGTH_RSP(
                 max_tx_bytes=247 + 4, max_rx_bytes=247 + 4)
             driver.send(pkt)
             send_pairing_request()

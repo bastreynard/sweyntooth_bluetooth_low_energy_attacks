@@ -66,7 +66,7 @@ def scan_timeout():
 
 
 # Open serial port of NRF52 Dongle
-driver = NRF52Dongle(serial_port, '115200', logs_pcap=True, \
+driver = NRF52Dongle(logs_pcap=True, \
                      pcap_filename=os.path.basename(__file__).split('.')[0] + '.pcap')
 # Send scan request
 scan_req = BTLE() / BTLE_ADV() / BTLE_SCAN_REQ(
@@ -97,7 +97,7 @@ while True:
             print(Fore.MAGENTA + "Slave RX <--- " + pkt.summary()[7:])
         # --------------- Process Link Layer Packets here ------------------------------------
         # Check if packet from advertised is received
-        if pkt and (BTLE_SCAN_RSP in pkt) and pkt.AdvA == advertiser_address.lower():
+        if pkt and (BTLE_SCAN_RSP in pkt or BTLE_ADV_IND in pkt) and pkt.AdvA == advertiser_address.lower():
             connecting = True
             update_timeout('scan_timeout')
             disable_timeout('crash_timeout')
@@ -124,16 +124,16 @@ while True:
             connecting = False
             print(Fore.GREEN + 'Slave Connected (L2Cap channel established)')
             # Send version indication request
-            pkt = pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_VERSION_IND(version='4.2')
+            pkt = pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_VERSION_IND(version='4.2')
             driver.send(pkt)
 
         elif LL_VERSION_IND in pkt:
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_LENGTH_REQ(
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_LENGTH_REQ(
                 max_tx_bytes=247 + 4, max_rx_bytes=247 + 4)
             driver.send(pkt)
 
         elif LL_LENGTH_REQ in pkt:
-            length_rsp = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_LENGTH_RSP(
+            length_rsp = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_LENGTH_RSP(
                 max_tx_bytes=247 + 4, max_rx_bytes=247 + 4)
             driver.send(length_rsp)  # Send a normal length response
 

@@ -4,5 +4,5 @@ if exist venv (
     echo "Creating virtual env..."
     python -m venv venv
     call venv/Scripts/activate
-    pip install -r requirements.txt
 )
+pip install -r requirements.txt

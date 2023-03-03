@@ -16,8 +16,7 @@ from colorama import Fore
 from drivers.NRF52_dongle import NRF52Dongle
 from scapy.layers.bluetooth4LE import *
 from scapy.layers.bluetooth import *
-from scapy.packet import Raw
-from scapy.utils import raw
+from scapy.compat import raw
 from timeout_lib import start_timeout, disable_timeout, update_timeout
 from Crypto.Cipher import AES
 
@@ -140,8 +139,8 @@ def scan_timeout():
 def set_security_settings(pkt):
     global paring_auth_request
     # Change security parameters according to slave security request
-    # paring_auth_request = pkt[SM_Security_Request].authentication
-    print(Fore.YELLOW + 'Slave requested authentication of ' + hex(pkt[SM_Security_Request].authentication))
+    # paring_auth_request = pkt[SM_Pairing_Request].authentication
+    print(Fore.YELLOW + 'Slave requested authentication of ' + hex(pkt[SM_Pairing_Request].authentication))
     print(Fore.YELLOW + 'We are using authentication of ' + hex(paring_auth_request))
 
 
@@ -245,7 +244,7 @@ def receive_encrypted(pkt):
 
 # Open serial port of NRF52 Dongle
 try:
-    driver = NRF52Dongle(serial_port, '115200', logs_pcap=True,
+    driver = NRF52Dongle(logs_pcap=True,
                          pcap_filename=script_folder + '/../logs/non_compliance_nonzero_ediv_rand.pcap')
 except Exception as e:
     print(Fore.RED + str(e))
@@ -292,8 +291,7 @@ while run_script:
             update_timeout('crash_timeout')
         # --------------- Process Link Layer Packets here ------------------------------------
         # Check if packet from advertised is received
-        if (
-                BTLE_SCAN_RSP in pkt or BTLE_ADV_IND in pkt) and pkt.AdvA == advertiser_address.lower() and connecting == False:
+        if (BTLE_SCAN_RSP in pkt or BTLE_ADV_IND in pkt) and pkt.AdvA == advertiser_address.lower() and connecting == False:
             connecting = True
             end_connection = False
             update_timeout('scan_timeout')
@@ -331,23 +329,23 @@ while run_script:
             if LL_VERSION_IND in pkt:
                 version_received = True
                 # Send version indication response
-                pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_VERSION_IND(version='4.2')
+                pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_VERSION_IND(version='4.2')
                 driver.send(pkt)
 
             print(Fore.GREEN + 'Slave Connected (Link Layer data channel established)')
-            if SM_Security_Request in pkt:
+            if SM_Pairing_Request in pkt:
                 set_security_settings(pkt)
 
             # Send Feature request
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_FEATURE_REQ(
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_FEATURE_REQ(
                 feature_set='le_encryption+le_data_len_ext')
             driver.send(pkt)
 
-        elif SM_Security_Request in pkt:
+        elif SM_Pairing_Request in pkt:
             set_security_settings(pkt)
 
         elif LL_FEATURE_RSP in pkt:
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_LENGTH_REQ(
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_LENGTH_REQ(
                 max_tx_bytes=247 + 4, max_rx_bytes=247 + 4)
             driver.send(pkt)
 
@@ -357,14 +355,14 @@ while run_script:
             driver.send(pkt)
 
         elif LL_LENGTH_REQ in pkt:
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_LENGTH_RSP(
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_LENGTH_RSP(
                 max_tx_bytes=247 + 4, max_rx_bytes=247 + 4)
             driver.send(pkt)
 
         elif ATT_Exchange_MTU_Response in pkt:
             # Send version indication request
             if version_received == False:
-                pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_VERSION_IND(version='4.2')
+                pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_VERSION_IND(version='4.2')
                 driver.send(pkt)
             else:
                 send_pairing_request()
@@ -394,7 +392,7 @@ while run_script:
                         switch_ediv_rand_test()
 
                         enc_request = BTLE(
-                            access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_ENC_REQ(ediv=ediv,
+                            access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_ENC_REQ(ediv=ediv,
                                                                                                rand=rand,
                                                                                                skdm=conn_iv,
                                                                                                ivm=conn_skd)
@@ -413,7 +411,7 @@ while run_script:
 
         elif LL_SLAVE_FEATURE_REQ in pkt:
             # Send Feature request
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_FEATURE_RSP(
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_FEATURE_RSP(
                 feature_set='le_encryption+le_data_len_ext')
             driver.send(pkt)
 
@@ -421,7 +419,7 @@ while run_script:
         elif LL_START_ENC_REQ in pkt:
             encryption_enabled = True
             pairing_procedure = False
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_START_ENC_RSP()
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_START_ENC_RSP()
             send_encrypted(pkt)
 
         elif LL_START_ENC_RSP in pkt:

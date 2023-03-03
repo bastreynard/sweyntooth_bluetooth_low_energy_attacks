@@ -25,24 +25,10 @@ slave_addr_type = 0
 # Autoreset colors
 colorama.init(autoreset=True)
 
-# Get serial port from command line
 if len(sys.argv) >= 2:
-    serial_port = sys.argv[1]
-elif platform.system() == 'Linux':
-    serial_port = '/dev/ttyACM0'
-elif platform.system() == 'Windows':
-    serial_port = 'COM1'
+    advertiser_address = sys.argv[1].upper()
 else:
-    print(Fore.RED + 'Platform not identified')
-    sys.exit(0)
-
-print(Fore.YELLOW + 'Serial port: ' + serial_port)
-
-# Get advertiser_address from command line (peripheral addr)
-if len(sys.argv) >= 3:
-    advertiser_address = sys.argv[2].lower()
-else:
-    advertiser_address = 'A4:C1:38:D8:AD:A9'
+    advertiser_address = 'A4:C1:38:D8:AD:B8'
 
 print(Fore.YELLOW + 'Advertiser Address: ' + advertiser_address.upper())
 
@@ -64,7 +50,7 @@ def scan_timeout():
 
 
 # Open serial port of NRF52 Dongle
-driver = NRF52Dongle(serial_port, '115200')
+driver = NRF52Dongle()
 # Send scan request
 scan_req = BTLE() / BTLE_ADV(RxAdd=slave_addr_type) / BTLE_SCAN_REQ(
     ScanA=master_address,
@@ -93,7 +79,7 @@ while True:
             print(Fore.MAGENTA + "Slave RX <--- " + pkt.summary()[7:])
         # --------------- Process Link Layer Packets here ------------------------------------
         # Check if packet from advertised is received
-        if (BTLE_SCAN_RSP in pkt or BTLE_ADV in pkt) and pkt.AdvA == advertiser_address.lower() and connecting == False:
+        if (BTLE_SCAN_RSP in pkt or BTLE_ADV_IND in pkt) and pkt.AdvA == advertiser_address.lower() and connecting == False:
             connecting = True
             update_timeout('scan_timeout')
             disable_timeout('crash_timeout')
@@ -120,13 +106,13 @@ while True:
             connecting = False
             print(Fore.GREEN + 'Slave Connected (L2Cap channel established)')
             # Send version indication request
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_VERSION_IND(version='4.2')
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_VERSION_IND(version='4.2')
             driver.send(pkt)
         elif BTLE_EMPTY_PDU in pkt:
             update_timeout('scan_timeout')
 
         elif LL_VERSION_IND in pkt:
-            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_LENGTH_REQ(
+            pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_LENGTH_REQ(
                 max_tx_bytes=247 + 4, max_rx_bytes=247 + 4)
             driver.send(pkt)
 
@@ -137,7 +123,7 @@ while True:
                 mtu=247)
             driver.send(att_mtu_req)  # Send mtu request 1 time
             driver.send(att_mtu_req)  # Send mtu request again (2 consecutive connection events)
-            # pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_TERMINATE_IND()
+            # pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_TERMINATE_IND()
             # driver.send(pkt)
             driver.send(scan_req)  # Go back to advertisement channel (without sending LL_TERMINATE_IND)
             print(Fore.YELLOW + 'Disconnecting from slave')

@@ -75,7 +75,7 @@ def scan_timeout():
 master_address = '5d:36:ac:90:0b:22'
 access_address = 0x9a328370
 # Open serial port of NRF52 Dongle
-driver = NRF52Dongle(serial_port, '115200', logs_pcap=True, pcap_filename='CC2540_connection_req_crash.pcap')
+driver = NRF52Dongle(logs_pcap=True, pcap_filename='CC2540_connection_req_crash.pcap')
 # Send scan request
 scan_req = BTLE() / BTLE_ADV(RxAdd=0) / BTLE_SCAN_REQ(
     ScanA=master_address,
@@ -113,7 +113,7 @@ while True:
         # Check if packet from advertised is received
         if pkt:
             print(Fore.MAGENTA + "Slave RX <--- " + pkt.summary()[7:])
-        if pkt and (BTLE_SCAN_RSP in pkt) and pkt.AdvA == advertiser_address.lower():
+        if pkt and (BTLE_SCAN_RSP in pkt or BTLE_ADV_IND in pkt) and pkt.AdvA == advertiser_address.lower():
             timeout.cancel()
             print(Fore.GREEN + advertiser_address.upper() + ': ' + pkt.summary()[7:] + ' Detected')
             # Send connection request to advertiser

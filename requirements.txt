@@ -2,3 +2,4 @@ pyserial
 nrfutil
 pycryptodome
 six
+scapy==2.5.0

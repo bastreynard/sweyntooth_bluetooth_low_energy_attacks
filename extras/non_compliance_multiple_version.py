@@ -71,12 +71,12 @@ def scan_timeout():
 def send_version_ind():
     global access_address
     # Send version indication request
-    pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_VERSION_IND(version='4.2')
+    pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_VERSION_IND(version='4.2')
     driver.send(pkt)
 
 
 # Open serial port of NRF52 Dongle
-driver = NRF52Dongle(serial_port, '115200', logs_pcap=True, \
+driver = NRF52Dongle(logs_pcap=True, \
                      pcap_filename=os.path.basename(__file__).split('.')[0] + '.pcap')
 # Send scan request
 scan_req = BTLE() / BTLE_ADV() / BTLE_SCAN_REQ(
@@ -107,7 +107,7 @@ while True:
             print(Fore.MAGENTA + "Slave RX <--- " + pkt.summary()[7:])
         # --------------- Process Link Layer Packets here ------------------------------------
         # Check if packet from advertised is received
-        if pkt and (BTLE_SCAN_RSP in pkt) and pkt.AdvA == advertiser_address.lower():
+        if pkt and (BTLE_SCAN_RSP in pkt or BTLE_ADV_IND in pkt) and pkt.AdvA == advertiser_address.lower():
             connecting = True
             update_timeout('scan_timeout')
             disable_timeout('crash_timeout')
@@ -138,7 +138,7 @@ while True:
         elif LL_VERSION_IND in pkt:
             if not received_version_ind:
                 received_version_ind = True
-                pkt = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_LENGTH_REQ(
+                pkt = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_LENGTH_REQ(
                     max_tx_bytes=247 + 4, max_rx_bytes=247 + 4)
                 driver.send(pkt)
             else:
@@ -149,7 +149,7 @@ while True:
                 end_connection = True
 
         elif LL_LENGTH_REQ in pkt:
-            length_rsp = BTLE(access_addr=access_address) / BTLE_DATA() / CtrlPDU() / LL_LENGTH_RSP(
+            length_rsp = BTLE(access_addr=access_address) / BTLE_DATA() / BTLE_CTRL() / LL_LENGTH_RSP(
                 max_tx_bytes=247 + 4, max_rx_bytes=247 + 4)
             driver.send(length_rsp)  # Send a normal length response
 
