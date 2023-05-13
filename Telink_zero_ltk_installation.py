@@ -52,11 +52,24 @@ fragment = None
 # Autoreset colors
 colorama.init(autoreset=True)
 
-# Get advertiser_address from command line (peripheral addr)
+# Get serial port from command line
 if len(sys.argv) >= 2:
-    advertiser_address = sys.argv[1].upper()
+    serial_port = sys.argv[1]
+elif platform.system() == 'Linux':
+    serial_port = '/dev/ttyACM0'
+elif platform.system() == 'Windows':
+    serial_port = 'COM1'
 else:
-    advertiser_address = 'A4:C1:38:D8:AD:B8'
+    print(Fore.RED + 'Platform not identified')
+    sys.exit(0)
+
+print(Fore.YELLOW + 'Serial port: ' + serial_port)
+
+# Get advertiser_address from command line (peripheral addr)
+if len(sys.argv) >= 3:
+    advertiser_address = sys.argv[2].lower()
+else:
+    advertiser_address = '38:81:d7:3d:45:a2'
 
 print(Fore.YELLOW + 'Advertiser Address: ' + advertiser_address.upper())
 
@@ -182,7 +195,7 @@ def defragment_l2cap(pkt):
 
 
 # Open serial port of NRF52 Dongle
-driver = NRF52Dongle(logs_pcap=True, pcap_filename='zero_ltk_capture.pcap')
+driver = NRF52Dongle(serial_port, '115200', logs_pcap=True, pcap_filename='zero_ltk_capture.pcap')
 # Send scan request
 scan_req = BTLE() / BTLE_ADV(RxAdd=slave_addr_type) / BTLE_SCAN_REQ(
     ScanA=master_address,
@@ -210,7 +223,7 @@ while run_script:
                 print(Fore.RED + 'NRF52 Dongle not detected')
                 sys.exit(0)
             continue
-        elif BTLE_DATA in pkt and BTLE_EMPTY_PDU not in pkt:
+        elif BTLE_DATA in pkt and pkt.len != 0:
             update_timeout('scan_timeout')
             # Print slave data channel PDUs summary
             print(Fore.MAGENTA + "RX <--- " + pkt.summary()[7:])

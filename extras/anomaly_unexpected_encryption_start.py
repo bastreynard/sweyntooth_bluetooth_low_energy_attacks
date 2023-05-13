@@ -100,9 +100,9 @@ print(Fore.YELLOW + 'Serial port: ' + serial_port)
 
 # Get advertiser_address from command line (peripheral addr)
 if len(sys.argv) >= 3:
-    advertiser_address = sys.argv[2].upper()
+    advertiser_address = sys.argv[2].lower()
 else:
-    advertiser_address = 'A4:C1:38:D8:AD:B8'
+    advertiser_address = '38:81:d7:3d:45:a2'
 
 print(Fore.YELLOW + 'Advertiser Address: ' + advertiser_address.upper())
 
@@ -267,7 +267,7 @@ def change_pairing():
 
 # Open serial port of NRF52 Dongle
 try:
-    driver = NRF52Dongle(logs_pcap=True,
+    driver = NRF52Dongle(serial_port, '115200', logs_pcap=True,
                          pcap_filename=script_folder + '/../logs/anomaly_unexpected_encryption_start.pcap')
 except Exception as e:
     print(Fore.RED + str(e))
@@ -308,7 +308,7 @@ while run_script:
                 print(Fore.RED + 'NRF52 Dongle not detected')
                 sys.exit(0)
             continue
-        elif BTLE_DATA in pkt and BTLE_EMPTY_PDU not in pkt:
+        elif BTLE_DATA in pkt and pkt.len != 0:
             update_timeout('scan_timeout')
             # Print slave data channel PDUs summary
             if not encryption_enabled:

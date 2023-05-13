@@ -80,8 +80,7 @@ print(Fore.YELLOW + 'Serial port: ' + serial_port)
 if len(sys.argv) >= 3:
     advertiser_address = sys.argv[2].lower()
 else:
-    # advertiser_address = 'A4:C1:38:D8:AD:B8'
-    advertiser_address = 'f8:f0:05:f3:66:e0'.lower()
+    advertiser_address = '38:81:d7:3d:45:a2'
 
 print(Fore.YELLOW + 'Advertiser Address: ' + advertiser_address.upper())
 
@@ -202,7 +201,7 @@ def defragment_l2cap(pkt):
 
 # Open serial port of NRF52 Dongle
 try:
-    driver = NRF52Dongle(logs_pcap=True,
+    driver = NRF52Dongle(serial_port, '115200',
                          pcap_filename=script_folder + '/../logs/dhcheck_skip_capture.pcap')
 except Exception as e:
     print(Fore.RED + str(e))
@@ -237,7 +236,7 @@ while run_script:
                 print(Fore.RED + 'NRF52 Dongle not detected')
                 sys.exit(0)
             continue
-        elif BTLE_DATA in pkt and BTLE_EMPTY_PDU not in pkt:
+        elif BTLE_DATA in pkt and pkt.len != 0:
             # Print slave data channel PDUs summary
             print(Fore.MAGENTA + "RX <--- " + pkt.summary()[7:])
         # --------------- Process Link Layer Packets here ------------------------------------

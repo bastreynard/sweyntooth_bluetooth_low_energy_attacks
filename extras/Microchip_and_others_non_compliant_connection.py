@@ -45,7 +45,7 @@ print(Fore.YELLOW + 'Serial port: ' + serial_port)
 if len(sys.argv) >= 3:
     advertiser_address = sys.argv[2].lower()
 else:
-    advertiser_address = 'f8:f0:05:f3:66:e0'.upper()
+    advertiser_address = '38:81:d7:3d:45:a2'
 
 print(Fore.YELLOW + 'Advertiser Address: ' + advertiser_address.upper())
 
@@ -79,7 +79,7 @@ def scan_timeout():
 master_address = '5d:36:ac:90:0b:22'
 access_address = 0x9a328370
 # Open serial port of NRF52 Dongle
-driver = NRF52Dongle(logs_pcap=True,
+driver = NRF52Dongle(serial_port, '115200',
                      pcap_filename='Microchip_and_others_non_compliant_connection.pcap')
 # Send scan request
 scan_req = BTLE() / BTLE_ADV(RxAdd=0) / BTLE_SCAN_REQ(

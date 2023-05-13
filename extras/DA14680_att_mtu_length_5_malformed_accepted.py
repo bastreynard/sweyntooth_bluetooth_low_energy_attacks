@@ -45,7 +45,7 @@ print(Fore.YELLOW + 'Serial port: ' + serial_port)
 if len(sys.argv) >= 3:
     advertiser_address = sys.argv[2].lower()
 else:
-    advertiser_address = '80:ea:ca:80:00:01'
+    advertiser_address = '38:81:d7:3d:45:a2'
 
 print(Fore.YELLOW + 'Advertiser Address: ' + advertiser_address.upper())
 
@@ -66,7 +66,7 @@ def scan_timeout():
 
 
 # Open serial port of NRF52 Dongle
-driver = NRF52Dongle(logs_pcap=True, \
+driver = NRF52Dongle(serial_port, '115200', logs_pcap=True, \
                      pcap_filename=os.path.basename(__file__).split('.')[0] + '.pcap')
 # Send scan request
 scan_req = BTLE() / BTLE_ADV() / BTLE_SCAN_REQ(
@@ -91,7 +91,7 @@ while True:
                 print(Fore.RED + 'NRF52 Dongle not detected')
                 sys.exit(0)
             continue
-        elif BTLE_DATA in pkt and BTLE_EMPTY_PDU not in pkt:
+        elif BTLE_DATA in pkt and pkt.len != 0:
             update_timeout('scan_timeout')
             # Print slave data channel PDUs summary
             print(Fore.MAGENTA + "Slave RX <--- " + pkt.summary()[7:])

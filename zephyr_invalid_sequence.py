@@ -47,7 +47,7 @@ print(Fore.YELLOW + 'Serial port: ' + serial_port)
 if len(sys.argv) >= 3:
     advertiser_address = sys.argv[2].lower()
 else:
-    advertiser_address = 'f8:f0:05:f3:66:e0'.upper()
+    advertiser_address = '38:81:d7:3d:45:a2'
 
 print(Fore.YELLOW + 'Advertiser Address: ' + advertiser_address.upper())
 

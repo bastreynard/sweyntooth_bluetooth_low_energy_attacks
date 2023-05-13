@@ -63,9 +63,9 @@ print(Fore.YELLOW + 'Serial port: ' + serial_port)
 
 # Get advertiser_address from command line (peripheral addr)
 if len(sys.argv) >= 3:
-    advertiser_address = sys.argv[2].upper()
+    advertiser_address = sys.argv[2].lower()
 else:
-    advertiser_address = 'A4:C1:38:D8:AD:B8'
+    advertiser_address = '38:81:d7:3d:45:a2'
 
 print(Fore.YELLOW + 'Advertiser Address: ' + advertiser_address.upper())
 

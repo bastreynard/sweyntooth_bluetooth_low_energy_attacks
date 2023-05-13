@@ -75,7 +75,7 @@ def scan_timeout():
 master_address = '5d:36:ac:90:0b:22'
 access_address = 0x9a328370
 # Open serial port of NRF52 Dongle
-driver = NRF52Dongle(logs_pcap=True, pcap_filename='CC2540_connection_req_crash.pcap')
+driver = NRF52Dongle(serial_port, '115200', logs_pcap=True, pcap_filename='CC2540_connection_req_crash.pcap')
 # Send scan request
 scan_req = BTLE() / BTLE_ADV(RxAdd=0) / BTLE_SCAN_REQ(
     ScanA=master_address,
@@ -106,7 +106,7 @@ while True:
                 print(Fore.RED + 'NRF52 Dongle not detected')
                 sys.exit(0)
             continue
-        elif slave_connected and BTLE_EMPTY_PDU not in pkt:
+        elif BTLE_DATA in pkt and slave_connected and pkt.len != 0:
             # Print slave data channel PDUs summary
             print(Fore.MAGENTA + "Slave RX <--- " + pkt.summary()[7:])
         # --------------- Process Link Layer Packets here ------------------------------------
